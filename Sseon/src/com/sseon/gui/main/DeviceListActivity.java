@@ -71,7 +71,7 @@ public class DeviceListActivity extends Activity {
 		}
 		
 		public String toString() {
-			return name + "\n" + address;
+			return (address != null ? name + "\n" + address : name);
 		}
 	}
 
@@ -187,13 +187,15 @@ public class DeviceListActivity extends Activity {
 			else
 				name = mPairedDevicesArrayAdapter.getItem(position);
 			if (D) Log.d(TAG, "picked: " + name.name + ", " + name.address);
-
-			// 선택한 장치의 MAC주소를 넘겨줍니다.
-			Intent intent = new Intent();
-			intent.putExtra(EXTRA_DEVICE_NAME, name.name);
-			intent.putExtra(EXTRA_DEVICE_ADDRESS, name.address);
-			setResult(Activity.RESULT_OK, intent);
-			finish();
+			
+			if (name.address != null) {
+				// 선택한 장치의 MAC주소를 넘겨줍니다.
+				Intent intent = new Intent();
+				intent.putExtra(EXTRA_DEVICE_NAME, name.name);
+				intent.putExtra(EXTRA_DEVICE_ADDRESS, name.address);
+				setResult(Activity.RESULT_OK, intent);
+				finish();
+			}
 		}
 	};
 
