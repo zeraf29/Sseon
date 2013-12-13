@@ -63,7 +63,6 @@ public class MainActivity extends Activity {
 	}
 
 	private void initView() {
-		// TODO Auto-generated method stub
 		connect = (Button) findViewById(R.id.set_connect);
 		connect.setOnClickListener(listener);
 		btstatus = (TextView) findViewById(R.id.set_btstatus);
@@ -226,7 +225,6 @@ public class MainActivity extends Activity {
 	                try {
 						mmServerSocket.close();
 					} catch (IOException e) {
-						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
 	                break;
