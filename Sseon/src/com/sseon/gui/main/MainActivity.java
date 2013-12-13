@@ -17,8 +17,7 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.BaseAdapter;
+import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
@@ -26,6 +25,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.sseon.R;
+import com.sseon.gui.widget.ButtonListAdapter;
 import com.sseon.util.Sseon;
 
 public class MainActivity extends Activity implements View.OnClickListener, Handler.Callback {
@@ -45,17 +45,14 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 	private Button addButton;
 	private Button removeButton;
 	private ListView managedList;
-//	private TextView btStatusText;
-//	private TextView connectingStatusText;
-//	private boolean isConnect = false; // view
+	private ButtonListAdapter<ManagedThread> managedListAdapter;
 
 	private Handler mHandler;
 
 	private SQLiteDatabase db; // db
 
-	private ConnectThread connectThread;
-//	private ManageThread manageThread;
-	private ArrayList<ManageThread> threadList;
+//	private ConnectThread connectThread;
+	private ArrayList<ManagedThread> threadList;
 	
 	private BluetoothAdapter mBtAdapter;
 
@@ -64,7 +61,7 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 		super.onCreate(savedInstanceState);
 		
 		mHandler = new Handler(this);
-		threadList = new ArrayList<ManageThread>();
+		threadList = new ArrayList<ManagedThread>();
 		initView();
 		
 		mBtAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -90,8 +87,20 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 		addButton = (Button) findViewById(R.id.managed_add);
 		addButton.setOnClickListener(this);
 		removeButton = (Button) findViewById(R.id.managed_remove);
+		removeButton.setOnClickListener(this);
+		
 		managedList = (ListView) findViewById(R.id.managed_list);
 		managedList.setEmptyView(findViewById(R.id.empty_managed_list));
+		managedListAdapter = new ButtonListAdapter<ManagedThread>(this, threadList);
+		managedList.setAdapter(managedListAdapter);
+		managedList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+		managedListAdapter.setButtonLabel("끊기");
+		managedListAdapter.setButtonClickListener(new AdapterView.OnItemClickListener() {
+			public void onItemClick(AdapterView<?> unused, View v, int position,
+					long id) {
+				Toast.makeText(MainActivity.this, "누르지 마라 " + position, Toast.LENGTH_LONG).show();
+			}
+		});
 	}
 
 	@Override
@@ -106,15 +115,15 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 			
 		case R.id.managed_add:
 			// 장치 목록 액티비티 보여주기
-//			startActivityForResult(
-//					new Intent(this, DeviceListActivity.class),
-//					REQUEST_CONNECT_DEVICE);
-			// TODO 땜빵
-			
+			startActivityForResult(
+					new Intent(this, DeviceListActivity.class),
+					REQUEST_CONNECT_DEVICE);
 			break;
 			
 		case R.id.managed_remove:
-			// TODO 연결된 거 끊는 액티비티 보여주기
+			boolean visible = managedListAdapter.getButtonVisible();
+			removeButton.setTextColor(!visible ? 0xff22b14c : Color.BLACK);
+			managedListAdapter.setButtonVisible(!visible);
 			break;
 		}
 	}
@@ -167,8 +176,15 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 					return;
 				}
 
-				connectThread = new ConnectThread(sock, mHandler);
-				connectThread.start();
+				// 스레드 따로 만들 필요가 없지 흠흠
+//				connectThread = new ConnectThread(sock, mHandler);
+//				connectThread.start();
+
+				ManagedThread manageThread = new ManagedThread(sock, mHandler);
+				threadList.add(manageThread);
+				managedListAdapter.notifyDataSetChanged();
+				
+				manageThread.start();
 			}
 			break;
 		}
@@ -176,120 +192,94 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 
 	@Override
 	public boolean handleMessage(Message msg) {
-		ManageThread manageThread;
-		
 		switch (msg.what) {
 		case MSG_START_MANAGING: // 컵받침 연결성공
 			Toast.makeText(getApplicationContext(), "연결시작",
 					Toast.LENGTH_SHORT).show();
-			updateBluetoothStatus();
+//			updateBluetoothStatus();
 			break;
 			
 		case MSG_CONNECT_ERROR:	// 장치 연결 실패
 			Toast.makeText(this, "해당 장치에 연결할 수 없습니다.", Toast.LENGTH_SHORT).show();
-			updateBluetoothStatus();
+			threadList.remove(msg.obj);
+			managedListAdapter.notifyDataSetChanged();
 			break;
 			
 		case MSG_CONNECTED:		// 됐어 가
-			connectThread = null;
-			
-			// 피관리자 추가
-			manageThread = new ManageThread((BluetoothSocket) msg.obj, mHandler);
-			threadList.add(manageThread);
-			manageThread.start();
+			managedListAdapter.notifyDataSetChanged();
 			break;
 			
 		case MSG_DISCONNECTED:	// 끊김
-			manageThread = (ManageThread) msg.obj;
-			threadList.remove(manageThread);
+			threadList.remove(msg.obj);
+			managedListAdapter.notifyDataSetChanged();
 			// TODO 끊겼네요; 알려주셈
 			Toast.makeText(this, "끊김ㅡㅡ", Toast.LENGTH_LONG).show();
 		}
 		return true;
 	}
 	
-	private static class ConfigurableListAdapter extends BaseAdapter {
-
-		@Override
-		public int getCount() {
-			return 0;
-		}
-
-		@Override
-		public Object getItem(int arg0) {
-			return null;
-		}
-
-		@Override
-		public long getItemId(int arg0) {
-			return 0;
-		}
-
-		@Override
-		public View getView(int arg0, View arg1, ViewGroup arg2) {
-			return null;
-		}
+	private class ManagedThread extends Thread {
+		private static final int STATE_ = 0;
 		
-	}
-
-	private static class ConnectThread extends Thread {
-		private BluetoothSocket mSocket;
+		private final BluetoothSocket mSocket;
+		private InputStream mInStream;
+		private OutputStream mOutStream;
 		private Handler mHandler;
+		private String mName;
+		
+		private int mState;
+		
+		// dummy
+		@Deprecated
+		public ManagedThread(String name) {
+			this.mSocket = null;
+			this.mName = name;
+		}
 
-		public ConnectThread(BluetoothSocket sock, Handler h) {
+		public ManagedThread(BluetoothSocket sock, Handler h) {
 			this.mSocket = sock;
 			this.mHandler = h;
 		}
-
-		public void run() {
+		
+		private void sendMessage(int what) {
+			Message msg = new Message();
+			msg.what = what;
+			msg.obj = this;
+			mHandler.sendMessage(msg);
+		}
+		
+		private boolean doConnect() {
 			Log.d("블루투스", "연결시도 : 소켓접속시도");
 
 			try {
 				mSocket.connect();
 			} catch (IOException e) {
-				mHandler.sendEmptyMessage(MSG_CONNECT_ERROR);
-				// mBtAdapter.disable();
-//				Sseon.isDeviceConnect = false;
-//				Sseon.onBTConnect = false;
 				Log.d("블루투스", "실패 : 소켓을 못열었다");
 				e.printStackTrace();
-				return;
+				sendMessage(MSG_CONNECT_ERROR);
+				return false;
 			}
 			
-			// 연결 성공함; 관리해주셈
-			Message msg = new Message();
-			msg.what = MSG_CONNECTED;
-			msg.obj = mSocket;
-			mHandler.sendMessage(msg);
-		}
-	}
-
-	private class ManageThread extends Thread {
-		private final BluetoothSocket mSocket;
-		private final InputStream mInStream;
-		private final OutputStream mOutStream;
-		private Handler mHandler;
-
-		public ManageThread(BluetoothSocket sock, Handler h) {
-			this.mSocket = sock;
-			this.mHandler = h;
-			
 			InputStream tmpIn = null;
-			try { tmpIn = sock.getInputStream(); } catch (IOException e) {}
+			try { tmpIn = mSocket.getInputStream(); } catch (IOException e) {}
 			
 			OutputStream tmpOut = null;
-			try { tmpOut = sock.getOutputStream(); } catch (IOException e) {}
-
+			try { tmpOut = mSocket.getOutputStream(); } catch (IOException e) {}
+			
 			this.mInStream = tmpIn;
 			this.mOutStream = tmpOut;
+			
+			// 연결 성공함; 관리해주셈
+			sendMessage(MSG_CONNECTED);
+			return true;
 		}
 
-		public void run() {
+		private void doKeepAlive() {
 			byte[] buffer = new byte[256];
 			int readBytes;
 
 			Log.d("블루투스", "연결성공");
-			mHandler.sendEmptyMessage(MSG_START_MANAGING);
+			sendMessage(MSG_START_MANAGING);
 //			Sseon.isDeviceConnect = true;
 //			Sseon.connThread = this;
 
@@ -304,14 +294,18 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 				}
 			} catch (IOException e) {
 			}
-
-			Message msg = new Message();
-			msg.what = MSG_DISCONNECTED;
-			msg.obj = this;
-			mHandler.sendMessage(msg);
-			
-			Log.d("블루투스", "읽기쓰기 스레드 종료");
 		}
+
+		public void run() {
+			if (doConnect()) {
+				doKeepAlive();
+				sendMessage(MSG_DISCONNECTED);
+				
+				Log.d("블루투스", "읽기쓰기 스레드 종료");
+			}
+		}
+
+		
 
 //		private void ManageBTMessange(byte code) {
 //			int weight;
@@ -368,6 +362,11 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 				mSocket.close();
 			} catch (IOException e) {
 			}
+		}
+		
+		@Override
+		public String toString() {
+			return (mName != null ? mName : super.toString());
 		}
 	}
 
