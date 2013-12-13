@@ -35,7 +35,6 @@ import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
-import android.widget.TextView;
 
 import com.sseon.R;
 
@@ -51,12 +50,30 @@ public class DeviceListActivity extends Activity {
 	private static final boolean D = true;
 
 	// Return Intent extra
+	public static final String EXTRA_DEVICE_NAME = "device_name";
 	public static final String EXTRA_DEVICE_ADDRESS = "device_address";
 
 	// Member fields
 	private BluetoothAdapter mBtAdapter;
-	private ArrayAdapter<String> mPairedDevicesArrayAdapter;
-	private ArrayAdapter<String> mNewDevicesArrayAdapter;
+	private ArrayAdapter<NameAndAddress> mPairedDevicesArrayAdapter;
+	private ArrayAdapter<NameAndAddress> mNewDevicesArrayAdapter;
+	
+	private ListView pairedListView;
+	private ListView newDevicesListView;
+	
+	private static class NameAndAddress {
+		String name;
+		String address;
+		
+		public NameAndAddress(String name, String address) {
+			this.name = name;
+			this.address = address;
+		}
+		
+		public String toString() {
+			return name + "\n" + address;
+		}
+	}
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -80,18 +97,18 @@ public class DeviceListActivity extends Activity {
 
 		// Initialize array adapters. One for already paired devices and
 		// one for newly discovered devices
-		mPairedDevicesArrayAdapter = new ArrayAdapter<String>(this,
+		mPairedDevicesArrayAdapter = new ArrayAdapter<NameAndAddress>(this,
 				R.layout.device_name);
-		mNewDevicesArrayAdapter = new ArrayAdapter<String>(this,
+		mNewDevicesArrayAdapter = new ArrayAdapter<NameAndAddress>(this,
 				R.layout.device_name);
 
 		// Find and set up the ListView for paired devices
-		ListView pairedListView = (ListView) findViewById(R.id.paired_devices);
+		pairedListView = (ListView) findViewById(R.id.paired_devices);
 		pairedListView.setAdapter(mPairedDevicesArrayAdapter);
 		pairedListView.setOnItemClickListener(mDeviceClickListener);
 
 		// Find and set up the ListView for newly discovered devices
-		ListView newDevicesListView = (ListView) findViewById(R.id.new_devices);
+		newDevicesListView = (ListView) findViewById(R.id.new_devices);
 		newDevicesListView.setAdapter(mNewDevicesArrayAdapter);
 		newDevicesListView.setOnItemClickListener(mDeviceClickListener);
 
@@ -113,12 +130,12 @@ public class DeviceListActivity extends Activity {
 		if (!pairedDevices.isEmpty()) {
 			findViewById(R.id.title_paired_devices).setVisibility(View.VISIBLE);
 			for (BluetoothDevice device : pairedDevices) {
-				mPairedDevicesArrayAdapter.add(device.getName() + "\n"
-						+ device.getAddress());
+				mPairedDevicesArrayAdapter.add(new NameAndAddress(
+						device.getName(), device.getAddress()));
 			}
 		} else {
-			String noDevices = "(연결된 장치 없음)";
-			mPairedDevicesArrayAdapter.add(noDevices);
+			mPairedDevicesArrayAdapter.add(
+					new NameAndAddress("(연결된 장치 없음)", null));
 		}
 	}
 
@@ -160,19 +177,21 @@ public class DeviceListActivity extends Activity {
 
 	// The on-click listener for all devices in the ListViews
 	private OnItemClickListener mDeviceClickListener = new OnItemClickListener() {
-		public void onItemClick(AdapterView<?> av, View v, int arg2, long arg3) {
+		public void onItemClick(AdapterView<?> av, View v, int position, long arg3) {
 			// Cancel discovery because it's costly and we're about to connect
 			mBtAdapter.cancelDiscovery();
 
-			// Get the device MAC address, which is the last 17 chars in the
-			// View
-			String info = ((TextView) v).getText().toString();
-			String address = info.substring(info.length() - 17);
-			if (D) Log.d(TAG, "picked: " + address);
+			NameAndAddress name = null;
+			if (newDevicesListView == av)
+				name = mNewDevicesArrayAdapter.getItem(position);
+			else
+				name = mPairedDevicesArrayAdapter.getItem(position);
+			if (D) Log.d(TAG, "picked: " + name.name + ", " + name.address);
 
 			// 선택한 장치의 MAC주소를 넘겨줍니다.
 			Intent intent = new Intent();
-			intent.putExtra(EXTRA_DEVICE_ADDRESS, address);
+			intent.putExtra(EXTRA_DEVICE_NAME, name.name);
+			intent.putExtra(EXTRA_DEVICE_ADDRESS, name.address);
 			setResult(Activity.RESULT_OK, intent);
 			finish();
 		}
@@ -190,8 +209,7 @@ public class DeviceListActivity extends Activity {
 				BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
 				// 이미 연결된 장치가 아닐 때만 추가함
 				if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
-					mNewDevicesArrayAdapter.add(device.getName() + "\n"
-							+ device.getAddress());
+					mNewDevicesArrayAdapter.add(new NameAndAddress(device.getName(), device.getAddress()));
 				}
 			} else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
 				// 장치를 다 찾았을 때 (끝)
@@ -200,8 +218,7 @@ public class DeviceListActivity extends Activity {
 				
 				// 찾은 장치가 없으면 없다고 해줌
 				if (mNewDevicesArrayAdapter.getCount() == 0) {
-					String noDevices = "(장치 없음)";
-					mNewDevicesArrayAdapter.add(noDevices);
+					mNewDevicesArrayAdapter.add(new NameAndAddress("(장치 없음)", null));
 				}
 			}
 		}

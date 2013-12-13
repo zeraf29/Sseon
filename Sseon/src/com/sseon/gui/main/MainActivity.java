@@ -54,7 +54,6 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 	private Handler mHandler;
 
 	private SQLiteDatabase db; // db
-	private SoundPool soundPool;
 	private MediaPlayer player;
 
 //	private ConnectThread connectThread;
@@ -166,7 +165,7 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 					Toast.LENGTH_LONG).show();
 			player.start();
 			Vibrator vib = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-			vib.vibrate(10000);
+			vib.vibrate(5000);
 		}
 
 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -183,7 +182,8 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 			Log.d("블루투스", "연결시도 : 관리 대상 연결시도");
 			if (resultCode == Activity.RESULT_OK) {
 				// 장치 골랐을 때
-				String address = data.getExtras().getString(DeviceListActivity.EXTRA_DEVICE_ADDRESS);
+				String name = data.getStringExtra(DeviceListActivity.EXTRA_DEVICE_NAME);
+				String address = data.getStringExtra(DeviceListActivity.EXTRA_DEVICE_ADDRESS);
 				BluetoothDevice device = mBtAdapter.getRemoteDevice(address);
 
 				BluetoothSocket sock = null;
@@ -198,7 +198,7 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 //				connectThread = new ConnectThread(sock, mHandler);
 //				connectThread.start();
 
-				ManagedThread manageThread = new ManagedThread(sock, mHandler);
+				ManagedThread manageThread = new ManagedThread(name, sock, mHandler);
 				threadList.add(manageThread);
 				managedListAdapter.notifyDataSetChanged();
 				
@@ -237,28 +237,37 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 	}
 	
 	private class ManagedThread extends Thread {
-		private static final int STATE_ = 0;
+		private static final int STATE_CONNECTING = 0;
+		private static final int STATE_CONNECTED = 1;
+		private static final int STATE_ERROR = 2;
+		
+		private final String[] stateMessage = {
+			"연결 중", "연결 됨", "오류"
+		};
 		
 		private final BluetoothSocket mSocket;
 		private InputStream mInStream;
 		private OutputStream mOutStream;
 		private Handler mHandler;
+		
 		private String mName;
+		private int mState = STATE_CONNECTING;
 		
-		private int mState;
-		
-		// dummy
-		@Deprecated
-		public ManagedThread(String name) {
-			this.mSocket = null;
+		public ManagedThread(String name, BluetoothSocket sock, Handler h) {
 			this.mName = name;
-		}
-
-		public ManagedThread(BluetoothSocket sock, Handler h) {
 			this.mSocket = sock;
 			this.mHandler = h;
 		}
 		
+		public void run() {
+			if (doConnect()) {
+				doKeepAlive();
+				sendMessage(MSG_DISCONNECTED);
+				
+				Log.d("블루투스", "읽기쓰기 스레드 종료");
+			}
+		}
+
 		private void sendMessage(int what) {
 			Message msg = new Message();
 			msg.what = what;
@@ -274,6 +283,7 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 			} catch (IOException e) {
 				Log.d("블루투스", "실패 : 소켓을 못열었다");
 				e.printStackTrace();
+				mState = STATE_ERROR;
 				sendMessage(MSG_CONNECT_ERROR);
 				return false;
 			}
@@ -288,6 +298,7 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 			this.mOutStream = tmpOut;
 			
 			// 연결 성공함; 관리해주셈
+			mState = STATE_CONNECTED;
 			sendMessage(MSG_CONNECTED);
 			return true;
 		}
@@ -314,14 +325,7 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 			}
 		}
 
-		public void run() {
-			if (doConnect()) {
-				doKeepAlive();
-				sendMessage(MSG_DISCONNECTED);
-				
-				Log.d("블루투스", "읽기쓰기 스레드 종료");
-			}
-		}
+		
 
 		
 
@@ -384,7 +388,7 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 		
 		@Override
 		public String toString() {
-			return (mName != null ? mName : super.toString());
+			return mName + " (" + stateMessage[mState] + ")";
 		}
 	}
 
