@@ -21,7 +21,7 @@
     <TextView android:id="@+id/title_paired_devices"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Paired Devices"
+        android:text="연결된 장치"
         android:visibility="gone"
         android:background="#666"
         android:textColor="#fff"
@@ -36,7 +36,7 @@
     <TextView android:id="@+id/title_new_devices"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Other Available Devices"
+        android:text="사용 가능한 장치"
         android:visibility="gone"
         android:background="#666"
         android:textColor="#fff"
@@ -48,9 +48,11 @@
         android:stackFromBottom="true"
         android:layout_weight="2"
     />
-    <Button android:id="@+id/button_scan"
+
+    <Button
+        android:id="@+id/button_scan"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Scan for devices"
-    />
+        android:text="장치 검색" />
+
 </LinearLayout>

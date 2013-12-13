@@ -45,7 +45,7 @@
    		<activity
 	            android:name="com.sseon.gui.main.DeviceListActivity"
 	            android:configChanges="orientation|keyboardHidden"
-	            android:label="select_device"/>
+	            android:label="피관리자 관리"/>
     </application>
 
 </manifest>
