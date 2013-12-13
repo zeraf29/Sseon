@@ -17,10 +17,14 @@ import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.content.Intent;
 import android.database.sqlite.SQLiteDatabase;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
+import android.media.SoundPool;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.Vibrator;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -45,6 +49,9 @@ public class MainActivity extends Activity {
 
 	private ConnectThread conThread = null;
 	private ConnectedThread cTread = null;
+	private SoundPool sound_pool;
+	private MediaPlayer player;
+	private int sound_beep;
 	private static final UUID MY_UUID = UUID
 			.fromString("00001101-0000-1000-8000-00805f9b34fb");
 	private static final int REQUEST_CONNECT_DEVICE = 1;
@@ -56,6 +63,7 @@ public class MainActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
+		player = MediaPlayer.create(this,R.raw.hong);
 		initView();
 		// mainHandler = MainActivity.getHandler();
 	}
@@ -198,6 +206,16 @@ public class MainActivity extends Activity {
 				btstatus.setText("> 블루투스 연결상태 : 켜짐");
 				cupstatus.setText("> 관리 대상 연결상태 : 연결안됨");
 				break;
+			case 2:
+				Toast.makeText(getApplicationContext(), "경고!!\n피관리 대상과 연결이 끊겼습니다.",
+						Toast.LENGTH_LONG).show();
+				btstatus.setText("> 블루투스 연결상태 : 오류");
+				cupstatus.setText("> 관리 대상 연결상태 : 연결안됨");
+				player.start();
+				Vibrator vib = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+				vib.vibrate(10000);
+				
+				break;
 			}
 		}
 	};
@@ -265,7 +283,7 @@ public class MainActivity extends Activity {
 			SseonFinal.connThread = this;
 
 			// Keep listening to the InputStream while connected
-			while (SseonFinal.isDeviceConnect) {
+			while (true) {
 				try { // Read from the InputStream
 					bytes = mmInStream.read(buffer);
 
@@ -280,7 +298,11 @@ public class MainActivity extends Activity {
 					
 					
 				} catch (IOException e) {
+					Log.d("블루투스","끊김"); 
+					mhand.sendEmptyMessage(2);
+
 					break;
+					
 				}
 			}
 			Log.d("블루투스", "읽기쓰기 스레드 종료");

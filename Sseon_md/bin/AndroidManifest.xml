@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.sseon"
+    package="com.sseon_md"
     android:versionCode="1"
     android:versionName="1.0" >
 
@@ -8,20 +8,24 @@
         android:minSdkVersion="8"
         android:targetSdkVersion="18" />
 
-    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-feature android:name="android.hardware.camera" />
+    <uses-feature android:name="android.hardware.camera.autofocus" />
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
 
     <application
-        android:name="com.sseon.util.SseonFinal"
+        android:name="com.sseon_md.util.SseonFinal"
         android:allowBackup="true"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@drawable/title"
         android:label="@string/app_name"
         android:theme="@style/AppTheme" >
 
         <!-- 인트로 페이지 -->
         <activity
-            android:name="com.sseon.intro.TitleActivity"
+            android:name="com.sseon_md.intro.TitleActivity"
             android:label="@string/app_name"
             android:theme="@android:style/Theme.NoTitleBar" >
             <intent-filter>
@@ -33,7 +37,7 @@
 
         <!-- 메인 액티비티 -->
         <activity
-            android:name="com.sseon.gui.main.MainActivity"
+            android:name="com.sseon_md.gui.main.MainActivity"
             android:label="@string/title_activity_main" >
             <intent-filter>
                 <action android:name="android.intent.action.TIME_SET" />
@@ -42,9 +46,10 @@
             </intent-filter>
         </activity>
    		<activity
-	            android:name="com.sseon.gui.main.DeviceListActivity"
+	            android:name="com.sseon_md.gui.main.DeviceListActivity"
 	            android:configChanges="orientation|keyboardHidden"
 	            android:label="select_device"/>
     </application>
 
 </manifest>
+
