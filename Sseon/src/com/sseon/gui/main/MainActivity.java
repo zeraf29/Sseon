@@ -275,48 +275,15 @@ public class MainActivity extends Activity {
 					// try { Thread.sleep(1000); } catch (InterruptedException
 					// e) {e.printStackTrace();} // for deley
 
-					if (bytes == 1
-							&& (buffer[0] == (byte) 0xFA || buffer[0] == (byte) 0xFB))
-						ManageBTMessange(buffer[0]);
-
+					
+					
+					
+					
 				} catch (IOException e) {
 					break;
 				}
 			}
 			Log.d("블루투스", "읽기쓰기 스레드 종료");
-		}
-
-		private void ManageBTMessange(byte code) {
-			int weight;
-			byte[] buffer = new byte[256];
-			int bytes = 0;
-			String rfid = null;
-
-			try {
-				if (code == (byte) 0xFA) {
-					bytes = mmInStream.read(buffer);
-					rfid = byteArrayToHex(buffer, bytes);
-					// Log.d("블루투스", "RFID : " + rfid);
-
-					Intent cupintent = new Intent();
-					cupintent.setAction("com.howcup.cuprfid");
-					cupintent.putExtra("rfid", rfid);
-					sendBroadcast(cupintent);
-				} else if (code == (byte) 0xFB) {
-					bytes = mmInStream.read(buffer);
-					weight = Integer
-							.parseInt(byteArrayToHex(buffer, bytes), 16);
-					// Log.d("블루투스", "CUP : " + weight);
-					// mainHandler.sendEmptyMessage(0);
-
-					Intent drinkintent = new Intent();
-					drinkintent.setAction("com.howcup.cupweight");
-					drinkintent.putExtra("weight", weight);
-					sendBroadcast(drinkintent);
-				}
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
 		}
 
 		/**
