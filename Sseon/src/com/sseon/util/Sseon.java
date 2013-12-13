@@ -1,5 +1,7 @@
 package com.sseon.util;
 
+import java.util.UUID;
+
 import android.app.Application;
 
 /**
@@ -8,11 +10,13 @@ import android.app.Application;
  *
  */
 
-public class SseonFinal extends Application {
-	
+public class Sseon extends Application {
 	public static boolean onBTConnect = false;
 	public static Thread connThread = null;
 	public static boolean isDeviceConnect = false;
+
+	public static final UUID SerialPortServiceClass_UUID = UUID
+			.fromString("00001101-0000-1000-8000-00805f9b34fb");
 
 	@Override
 	public void onCreate() {

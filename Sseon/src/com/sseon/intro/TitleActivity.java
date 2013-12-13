@@ -1,44 +1,57 @@
 package com.sseon.intro;
 
 import android.app.Activity;
+import android.bluetooth.BluetoothAdapter;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
+import android.widget.Toast;
 
 import com.sseon.R;
 import com.sseon.gui.main.MainActivity;
 
-public class TitleActivity extends Activity {
-
-	Handler h;
+public class TitleActivity extends Activity implements Runnable {
+	private Handler splashDelayedHandler;
+	private BluetoothAdapter adapter;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_title);
 		
-		h = new Handler();
-		h.postDelayed(r, 1000);
+		splashDelayedHandler = new Handler();
+		splashDelayedHandler.postDelayed(this, 1000);
+		
+		// 여기서 BT 어댑터 체크를 좀 해줌
+		adapter = BluetoothAdapter.getDefaultAdapter();
+		if (adapter == null) {
+			Toast.makeText(this, "블루투스 장치가 없으므로 종료합니다.", Toast.LENGTH_LONG).show();
+		}
 	}
 	
-	Runnable r = new Runnable() {
-		@Override
-		public void run() {
-			Intent i = new Intent(TitleActivity.this, MainActivity.class);
-			startActivity(i);
+	@Override
+	protected void onResume() {
+		super.onResume();
+		adapter = BluetoothAdapter.getDefaultAdapter();
+	}
+
+	@Override
+	public void onBackPressed() {
+		super.onBackPressed();
+		splashDelayedHandler.removeCallbacks(this);
+	}
+
+	@Override
+	public void run() {
+		if (adapter == null) {
+			// BT 없으면 그냥 끔
+			finish();
+		} else {
+			startActivity(new Intent(this, MainActivity.class));
 			finish();
 			
 			overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
 		}
-	};
-	
-	@Override
-	public void onBackPressed() {
-		super.onBackPressed();
-		h.removeCallbacks(r);
 	}
 
 }
