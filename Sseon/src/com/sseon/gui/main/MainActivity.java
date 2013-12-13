@@ -3,13 +3,8 @@ package com.sseon.gui.main;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayDeque;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Queue;
-import java.util.UUID;
+import java.util.ArrayList;
 
-import android.app.ActionBar;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -17,320 +12,379 @@ import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.content.Intent;
 import android.database.sqlite.SQLiteDatabase;
-import android.media.AudioManager;
+import android.graphics.Color;
 import android.media.MediaPlayer;
 import android.media.SoundPool;
 import android.os.Bundle;
 import android.os.Handler;
-import android.os.Looper;
 import android.os.Message;
 import android.os.Vibrator;
 import android.util.Log;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.ListView;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.sseon.R;
-import com.sseon.util.SseonFinal;
+import com.sseon.gui.widget.ButtonListAdapter;
+import com.sseon.util.Sseon;
 
-public class MainActivity extends Activity {
-
-	Button connect;
-	Button resetDrink;
-	Button resetCup;
-	TextView btstatus;
-	TextView cupstatus;
-	boolean isConnect = false; // view
-
-	// Handler mainHandler;
-
-	SQLiteDatabase db; // db
-
-	private ConnectThread conThread = null;
-	private ConnectedThread cTread = null;
-	private SoundPool sound_pool;
-	private MediaPlayer player;
-	private int sound_beep;
-	private static final UUID MY_UUID = UUID
-			.fromString("00001101-0000-1000-8000-00805f9b34fb");
+public class MainActivity extends Activity implements View.OnClickListener, Handler.Callback {
 	private static final int REQUEST_CONNECT_DEVICE = 1;
 	private static final int REQUEST_ENABLE_BT = 3;
-	private BluetoothAdapter mBtAdapter = null; // bluetooth
+	
+	private static final int MSG_START_MANAGING = 0;
+	private static final int MSG_CONNECT_ERROR = 1;
+	private static final int MSG_CONNECTED = 2;
+	private static final int MSG_DISCONNECTED = 3;
+	
+	private RelativeLayout emptyListLayout;
+	private Button btEnableButton;
+	private TextView btStatusText;
+	
+	private RelativeLayout mainListLayout;
+	private Button addButton;
+	private Button removeButton;
+	private ListView managedList;
+	private ButtonListAdapter<ManagedThread> managedListAdapter;
+
+	private Handler mHandler;
+
+	private SQLiteDatabase db; // db
+	private SoundPool soundPool;
+	private MediaPlayer player;
+
+//	private ConnectThread connectThread;
+	private ArrayList<ManagedThread> threadList;
+	
+	private BluetoothAdapter mBtAdapter;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		setContentView(R.layout.activity_main);
-
-		player = MediaPlayer.create(this,R.raw.hong);
-		initView();
-		// mainHandler = MainActivity.getHandler();
-	}
-
-	private void initView() {
-		// TODO Auto-generated method stub
-		connect = (Button) findViewById(R.id.set_connect);
-		connect.setOnClickListener(listener);
-		btstatus = (TextView) findViewById(R.id.set_btstatus);
-		cupstatus = (TextView) findViewById(R.id.set_cupstatus);
 		
+		mHandler = new Handler(this);
+		threadList = new ArrayList<ManagedThread>();
+		initView();
+		
+		mBtAdapter = BluetoothAdapter.getDefaultAdapter();
+		updateBluetoothStatus();
+		
+		player = MediaPlayer.create(this, R.raw.hong);
 	}
 
 	public void onResume() {
 		super.onResume();
-
+	
 		mBtAdapter = BluetoothAdapter.getDefaultAdapter();
+		updateBluetoothStatus();
+	}
+
+	private void initView() {
+		setContentView(R.layout.activity_main);
+		
+		emptyListLayout = (RelativeLayout) findViewById(R.id.manage_empty_layout);
+		btEnableButton = (Button) findViewById(R.id.bt_enable);
+		btEnableButton.setOnClickListener(this);
+		btStatusText = (TextView) findViewById(R.id.bt_status);
+		
+		mainListLayout = (RelativeLayout) findViewById(R.id.manage_main_layout);
+		addButton = (Button) findViewById(R.id.managed_add);
+		addButton.setOnClickListener(this);
+		removeButton = (Button) findViewById(R.id.managed_remove);
+		removeButton.setOnClickListener(this);
+		
+		managedList = (ListView) findViewById(R.id.managed_list);
+		managedList.setEmptyView(findViewById(R.id.empty_managed_list));
+		managedListAdapter = new ButtonListAdapter<ManagedThread>(this, threadList);
+		managedList.setAdapter(managedListAdapter);
+		managedList.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
+		managedListAdapter.setButtonLabel("끊기");
+		managedListAdapter.setButtonClickListener(new AdapterView.OnItemClickListener() {
+			public void onItemClick(AdapterView<?> unused, View v, int position,
+					long id) {
+				Toast.makeText(MainActivity.this, "누르지 마라 " + position, Toast.LENGTH_LONG).show();
+			}
+		});
+	}
+
+	@Override
+	public void onClick(View v) {
+		switch (v.getId()) {
+		case R.id.bt_enable:
+			// 블투 쓰게 해주세요
+			startActivityForResult(
+					new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE),
+					REQUEST_ENABLE_BT);
+			break;
+			
+		case R.id.managed_add:
+			// 장치 목록 액티비티 보여주기
+			startActivityForResult(
+					new Intent(this, DeviceListActivity.class),
+					REQUEST_CONNECT_DEVICE);
+			break;
+			
+		case R.id.managed_remove:
+			boolean visible = managedListAdapter.getButtonVisible();
+			removeButton.setTextColor(!visible ? 0xff22b14c : Color.BLACK);
+			managedListAdapter.setButtonVisible(!visible);
+			break;
+		}
+	}
+	
+	private void updateBluetoothStatus() {
 		if (mBtAdapter != null && mBtAdapter.isEnabled()) {
-			SseonFinal.onBTConnect = true;
-			connect.setText("연결");
-			btstatus.setText("> 블루투스 연결상태 : 켜짐");
-		}
-	}
-
-	Button.OnClickListener listener = new Button.OnClickListener() {
-
-		@Override
-		public void onClick(View v) {
-			switch (v.getId()) {
-			case R.id.set_connect:
-				manageBluetooth(); 
-				break;
-			}
-		}
-	};
-
-	public void manageBluetooth() {
-		
-		if(mBtAdapter.isEnabled()){
-			SseonFinal.onBTConnect = true;
-		}else{
-			btstatus.setText("> 블루투스 연결상태 : 꺼짐");
-			SseonFinal.onBTConnect = false;
-		}
-		
-		if (!SseonFinal.onBTConnect) { // 블루투스가 꺼져있다
-			mBtAdapter = BluetoothAdapter.getDefaultAdapter();
+			// 사용 가능함
+			emptyListLayout.setVisibility(View.GONE);
+			mainListLayout.setVisibility(View.VISIBLE);
+		} else {
+			mainListLayout.setVisibility(View.GONE);
+			emptyListLayout.setVisibility(View.VISIBLE);
+			
 			if (mBtAdapter == null) {
-				Toast.makeText(this, "블루투스를 사용할 수 없습니다.", Toast.LENGTH_SHORT)
-						.show();
-				SseonFinal.onBTConnect = false;
-				return;
+				// 장치가 아예 없음...
+				btStatusText.setTextColor(Color.RED);
+				btStatusText.setText("블루투스 장치가 없습니다.");
+				btEnableButton.setEnabled(false);
+			} else {
+				// 블루투스가 꺼져있음
+				btStatusText.setTextColor(Color.BLACK);
+				btStatusText.setText("블루투스가 꺼져있습니다.");
+				btEnableButton.setEnabled(true);
 			}
-
-			// 블루투스 활성화 요청
-			if (!mBtAdapter.isEnabled()) {
-				Log.d("블루투스", "연결 요청");
-				Toast.makeText(this, "블루투스 사용을 요청 ", Toast.LENGTH_SHORT).show();
-				Intent enableIntent = new Intent(
-						BluetoothAdapter.ACTION_REQUEST_ENABLE);
-				startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
-			}
-		} else if (!SseonFinal.isDeviceConnect) { // 블루투스는 켜져있으나 컵받침은 연결 안되어 있다
-			Intent intent = new Intent(this, DeviceListActivity.class);
-			startActivityForResult(intent, REQUEST_CONNECT_DEVICE);
-		} else if (SseonFinal.onBTConnect) { // 블루투스가 켜져있다
-			((ConnectedThread) SseonFinal.connThread).cancel();
-			mBtAdapter.disable(); // 블루투스가 연결되어있으면 끔
-			isConnect = false;
-			SseonFinal.onBTConnect = false;
-
-			Toast.makeText(getApplicationContext(), "연결종료", Toast.LENGTH_SHORT)
-					.show();
-			connect.setText("연결");
-			btstatus.setText("> 블루투스 연결상태 : 꺼짐");
-			cupstatus.setText("> 관리 대상 연결상태 : 연결안됨");
-
 		}
 	}
-
-	BluetoothSocket mSocket = null;
+	
+	private void alertToUser() {
+			// TODO 끊겼네요; 알려주셈
+	//		Toast.makeText(this, "끊김ㅡㅡ", Toast.LENGTH_LONG).show();
+			Toast.makeText(this, "경고!!\n피관리 대상과 연결이 끊겼습니다.",
+					Toast.LENGTH_LONG).show();
+			player.start();
+			Vibrator vib = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+			vib.vibrate(10000);
+		}
 
 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		switch (requestCode) {
 		case REQUEST_ENABLE_BT:
-			if (resultCode == Activity.RESULT_OK) {
-				Log.d("블루투스", "성공 : 블루투스 활성화");
-				Toast.makeText(this, "블루투스를 활성화하였습니다.", Toast.LENGTH_SHORT)
-						.show();
-				isConnect = true;
-				SseonFinal.onBTConnect = true;
-				btstatus.setText("> 블루투스 연결상태 : 켜짐");
-
-				Intent intent = new Intent(this, DeviceListActivity.class);
-				startActivityForResult(intent, REQUEST_CONNECT_DEVICE);
-			} else {
+			updateBluetoothStatus();
+			if (resultCode != Activity.RESULT_OK) {
 				Log.d("블루투스", "실패 : 블루투스 활성화 실패");
-				Toast.makeText(this, "블루투스를 활성화하지 못했습니다.", Toast.LENGTH_SHORT)
-						.show();
-				isConnect = false;
-				SseonFinal.onBTConnect = false;
+				Toast.makeText(this, "블루투스를 켜야 합니다.", Toast.LENGTH_SHORT).show();
 			}
 			break;
+			
 		case REQUEST_CONNECT_DEVICE:
 			Log.d("블루투스", "연결시도 : 관리 대상 연결시도");
-			// When DeviceListActivity returns with a device to connect
 			if (resultCode == Activity.RESULT_OK) {
-				String address = data.getExtras().getString(
-						DeviceListActivity.EXTRA_DEVICE_ADDRESS);
-				// Get the BluetoothDevice object
+				// 장치 골랐을 때
+				String address = data.getExtras().getString(DeviceListActivity.EXTRA_DEVICE_ADDRESS);
 				BluetoothDevice device = mBtAdapter.getRemoteDevice(address);
 
+				BluetoothSocket sock = null;
 				try {
-					mSocket = device.createRfcommSocketToServiceRecord(MY_UUID);
+					sock = device.createRfcommSocketToServiceRecord(Sseon.SerialPortServiceClass_UUID);
 				} catch (IOException e) {
 					e.printStackTrace();
 					return;
 				}
 
-				conThread = new ConnectThread(mSocket, mHandler);
-				conThread.start();
+				// 스레드 따로 만들 필요가 없지 흠흠
+//				connectThread = new ConnectThread(sock, mHandler);
+//				connectThread.start();
+
+				ManagedThread manageThread = new ManagedThread(sock, mHandler);
+				threadList.add(manageThread);
+				managedListAdapter.notifyDataSetChanged();
+				
+				manageThread.start();
 			}
 			break;
 		}
 	}
 
-	Handler mHandler = new Handler() {
-		public void handleMessage(Message msg) {
-			switch (msg.what) {
-			case 0: // 컵받침 연결성공
-				Toast.makeText(getApplicationContext(), "연결시작",
-						Toast.LENGTH_SHORT).show();
-				connect.setText("연결해제");
-				btstatus.setText("> 블루투스 연결상태 : 켜짐");
-				cupstatus.setText("> 관리 대상 연결상태 : 연결됨");
-				break;
-			case 1: // 컵받침을 찾을 수 없어 연결실패. 블루투스는 켜진채로 냅둠
-				Toast.makeText(getApplicationContext(), "해당 블루투스를 찾을 수 없습니다",
-						Toast.LENGTH_SHORT).show();
-				btstatus.setText("> 블루투스 연결상태 : 켜짐");
-				cupstatus.setText("> 관리 대상 연결상태 : 연결안됨");
-				break;
-			case 2:
-				Toast.makeText(getApplicationContext(), "경고!!\n피관리 대상과 연결이 끊겼습니다.",
-						Toast.LENGTH_LONG).show();
-				btstatus.setText("> 블루투스 연결상태 : 오류");
-				cupstatus.setText("> 관리 대상 연결상태 : 연결안됨");
-				player.start();
-				Vibrator vib = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-				vib.vibrate(10000);
-				
-				break;
-			}
+	@Override
+	public boolean handleMessage(Message msg) {
+		switch (msg.what) {
+		case MSG_START_MANAGING: // 컵받침 연결성공
+			Toast.makeText(getApplicationContext(), "연결시작",
+					Toast.LENGTH_SHORT).show();
+//			updateBluetoothStatus();
+			break;
+			
+		case MSG_CONNECT_ERROR:	// 장치 연결 실패
+			Toast.makeText(this, "해당 장치에 연결할 수 없습니다.", Toast.LENGTH_SHORT).show();
+			threadList.remove(msg.obj);
+			managedListAdapter.notifyDataSetChanged();
+			alertToUser(); // TODO 테스트용
+			break;
+			
+		case MSG_CONNECTED:		// 됐어 가
+			managedListAdapter.notifyDataSetChanged();
+			break;
+			
+		case MSG_DISCONNECTED:	// 끊김
+			threadList.remove(msg.obj);
+			managedListAdapter.notifyDataSetChanged();
+			alertToUser();
 		}
-	};
-
-	private class ConnectThread extends Thread {
-		BluetoothSocket msoc = null;
-		Handler mhand;
-
-		public ConnectThread(BluetoothSocket _soc, Handler hand) {
-			msoc = _soc;
-			mhand = hand;
+		return true;
+	}
+	
+	private class ManagedThread extends Thread {
+		private static final int STATE_ = 0;
+		
+		private final BluetoothSocket mSocket;
+		private InputStream mInStream;
+		private OutputStream mOutStream;
+		private Handler mHandler;
+		private String mName;
+		
+		private int mState;
+		
+		// dummy
+		@Deprecated
+		public ManagedThread(String name) {
+			this.mSocket = null;
+			this.mName = name;
 		}
 
-		public void run() {
+		public ManagedThread(BluetoothSocket sock, Handler h) {
+			this.mSocket = sock;
+			this.mHandler = h;
+		}
+		
+		private void sendMessage(int what) {
+			Message msg = new Message();
+			msg.what = what;
+			msg.obj = this;
+			mHandler.sendMessage(msg);
+		}
+		
+		private boolean doConnect() {
 			Log.d("블루투스", "연결시도 : 소켓접속시도");
-			mBtAdapter.cancelDiscovery();
 
 			try {
-				msoc.connect();
+				mSocket.connect();
 			} catch (IOException e) {
-				mhand.sendEmptyMessage(1);
-				// mBtAdapter.disable();
-				SseonFinal.isDeviceConnect = false;
-				SseonFinal.onBTConnect = false;
 				Log.d("블루투스", "실패 : 소켓을 못열었다");
 				e.printStackTrace();
-				return;
+				sendMessage(MSG_CONNECT_ERROR);
+				return false;
 			}
-			cTread = new ConnectedThread(msoc, mHandler);
-			cTread.start();
-
-		}
-	}
-
-	private class ConnectedThread extends Thread {
-		private final BluetoothSocket mmSocket;
-		private final InputStream mmInStream;
-		private final OutputStream mmOutStream;
-		private Handler mhand;
-
-		public ConnectedThread(BluetoothSocket socket, Handler hand) {
-			mmSocket = socket;
+			
 			InputStream tmpIn = null;
+			try { tmpIn = mSocket.getInputStream(); } catch (IOException e) {}
+			
 			OutputStream tmpOut = null;
-			mhand = hand;
+			try { tmpOut = mSocket.getOutputStream(); } catch (IOException e) {}
+			
+			this.mInStream = tmpIn;
+			this.mOutStream = tmpOut;
+			
+			// 연결 성공함; 관리해주셈
+			sendMessage(MSG_CONNECTED);
+			return true;
+		}
 
-			// Get the BluetoothSocket input and output streams
+		private void doKeepAlive() {
+			byte[] buffer = new byte[256];
+			int readBytes;
+
+			Log.d("블루투스", "연결성공");
+			sendMessage(MSG_START_MANAGING);
+//			Sseon.isDeviceConnect = true;
+//			Sseon.connThread = this;
+
+			// Keep listening to the InputStream while connected
 			try {
-				tmpIn = socket.getInputStream();
-				tmpOut = socket.getOutputStream();
+				while (true) {
+					readBytes = mInStream.read(buffer);
+//					if (readBytes == 1
+//							&& (buffer[0] == (byte) 0xFA || buffer[0] == (byte) 0xFB))
+//						ManageBTMessange(buffer[0]);
+
+				}
 			} catch (IOException e) {
 			}
-
-			mmInStream = tmpIn;
-			mmOutStream = tmpOut;
 		}
 
 		public void run() {
-			byte[] buffer = new byte[256];
-			int bytes;
-
-			Log.d("블루투스", "연결성공");
-			mhand.sendEmptyMessage(0);
-			SseonFinal.isDeviceConnect = true;
-			SseonFinal.connThread = this;
-
-			// Keep listening to the InputStream while connected
-			while (true) {
-				try { // Read from the InputStream
-					bytes = mmInStream.read(buffer);
-
-					// Log.d("블루투스", "메세지1 : " + byteArrayToHex(buffer, bytes));
-					// String readMessage = new String(buffer, 0, bytes);
-
-					// try { Thread.sleep(1000); } catch (InterruptedException
-					// e) {e.printStackTrace();} // for deley
-
-					
-					
-					
-					
-				} catch (IOException e) {
-					Log.d("블루투스","끊김"); 
-					mhand.sendEmptyMessage(2);
-
-					break;
-					
-				}
-			}
-			Log.d("블루투스", "읽기쓰기 스레드 종료");
-		}
-
-		/**
-		 * Write to the connected OutStream.
-		 * 
-		 * @param buffer
-		 *            The bytes to write
-		 */
-		public void write(byte[] buffer) {
-			try {
-				mmOutStream.write(buffer);
-
-			} catch (IOException e) {
+			if (doConnect()) {
+				doKeepAlive();
+				sendMessage(MSG_DISCONNECTED);
+				
+				Log.d("블루투스", "읽기쓰기 스레드 종료");
 			}
 		}
+
+		
+
+//		private void ManageBTMessange(byte code) {
+//			int weight;
+//			byte[] buffer = new byte[256];
+//			int bytes = 0;
+//			String rfid = null;
+//
+//			try {
+//				if (code == (byte) 0xFA) {
+//					bytes = mInStream.read(buffer);
+//					rfid = byteArrayToHex(buffer, bytes);
+//					// Log.d("블루투스", "RFID : " + rfid);
+//
+//					Intent cupintent = new Intent();
+//					cupintent.setAction("com.howcup.cuprfid");
+//					cupintent.putExtra("rfid", rfid);
+//					sendBroadcast(cupintent);
+//				} else if (code == (byte) 0xFB) {
+//					bytes = mInStream.read(buffer);
+//					weight = Integer
+//							.parseInt(byteArrayToHex(buffer, bytes), 16);
+//					// Log.d("블루투스", "CUP : " + weight);
+//					// mainHandler.sendEmptyMessage(0);
+//
+//					Intent drinkintent = new Intent();
+//					drinkintent.setAction("com.howcup.cupweight");
+//					drinkintent.putExtra("weight", weight);
+//					sendBroadcast(drinkintent);
+//				}
+//			} catch (IOException e) {
+//				e.printStackTrace();
+//			}
+//		}
+//
+//		/**
+//		 * Write to the connected OutStream.
+//		 * 
+//		 * @param buffer
+//		 *            The bytes to write
+//		 */
+//		public void write(byte[] buffer) {
+//			try {
+//				mOutStream.write(buffer);
+//			} catch (IOException e) {
+//			}
+//		}
 
 		public void cancel() {
 			try {
-				SseonFinal.isDeviceConnect = false;
-				SseonFinal.connThread = null;
-				mmInStream.close();
-				mmOutStream.close();
-				mmSocket.close();
+//				Sseon.isDeviceConnect = false;
+//				Sseon.connThread = null;
+				mInStream.close();
+				mOutStream.close();
+				mSocket.close();
 			} catch (IOException e) {
 			}
+		}
+		
+		@Override
+		public String toString() {
+			return (mName != null ? mName : super.toString());
 		}
 	}
 
