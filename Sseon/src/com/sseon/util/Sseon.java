@@ -18,14 +18,4 @@ public class Sseon extends Application {
 	public static final UUID SerialPortServiceClass_UUID = UUID
 			.fromString("00001101-0000-1000-8000-00805f9b34fb");
 
-	@Override
-	public void onCreate() {
-		super.onCreate();
-	}
-
-	@Override
-	public void onTerminate() {
-		super.onTerminate();
-	}
-	
 }

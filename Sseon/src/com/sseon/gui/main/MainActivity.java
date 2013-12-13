@@ -9,12 +9,16 @@ import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.content.Context;
 import android.content.Intent;
 import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Color;
+import android.media.MediaPlayer;
+import android.media.SoundPool;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.os.Vibrator;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
@@ -50,6 +54,8 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 	private Handler mHandler;
 
 	private SQLiteDatabase db; // db
+	private SoundPool soundPool;
+	private MediaPlayer player;
 
 //	private ConnectThread connectThread;
 	private ArrayList<ManagedThread> threadList;
@@ -66,6 +72,8 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 		
 		mBtAdapter = BluetoothAdapter.getDefaultAdapter();
 		updateBluetoothStatus();
+		
+		player = MediaPlayer.create(this, R.raw.hong);
 	}
 
 	public void onResume() {
@@ -151,6 +159,16 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 		}
 	}
 	
+	private void alertToUser() {
+			// TODO 끊겼네요; 알려주셈
+	//		Toast.makeText(this, "끊김ㅡㅡ", Toast.LENGTH_LONG).show();
+			Toast.makeText(this, "경고!!\n피관리 대상과 연결이 끊겼습니다.",
+					Toast.LENGTH_LONG).show();
+			player.start();
+			Vibrator vib = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+			vib.vibrate(10000);
+		}
+
 	public void onActivityResult(int requestCode, int resultCode, Intent data) {
 		switch (requestCode) {
 		case REQUEST_ENABLE_BT:
@@ -203,6 +221,7 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 			Toast.makeText(this, "해당 장치에 연결할 수 없습니다.", Toast.LENGTH_SHORT).show();
 			threadList.remove(msg.obj);
 			managedListAdapter.notifyDataSetChanged();
+			alertToUser(); // TODO 테스트용
 			break;
 			
 		case MSG_CONNECTED:		// 됐어 가
@@ -212,8 +231,7 @@ public class MainActivity extends Activity implements View.OnClickListener, Hand
 		case MSG_DISCONNECTED:	// 끊김
 			threadList.remove(msg.obj);
 			managedListAdapter.notifyDataSetChanged();
-			// TODO 끊겼네요; 알려주셈
-			Toast.makeText(this, "끊김ㅡㅡ", Toast.LENGTH_LONG).show();
+			alertToUser();
 		}
 		return true;
 	}
